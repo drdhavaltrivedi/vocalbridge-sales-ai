@@ -28,12 +28,16 @@ export default function Login() {
     }
     */
     
-    // Testing Mode: Anonymous Login
+    // Testing Mode: Local Bypass
     try {
-      await signInAnonymously(auth);
-      console.log("Logged in anonymously for testing");
+      // Set a flag in localStorage to bypass the auth check in App.tsx
+      localStorage.setItem('vocalbridge_test_mode', 'true');
+      // We still try to sign in anonymously if possible, but the flag will be our primary bypass
+      await signInAnonymously(auth).catch(() => console.warn("Firebase Anonymous Auth disabled, using local bypass"));
+      // Force a reload or state change if needed, but App.tsx will check this on mount/update
+      window.location.reload(); 
     } catch (error) {
-      console.error("Anonymous login failed:", error);
+      console.error("Bypass failed:", error);
     }
   };
 

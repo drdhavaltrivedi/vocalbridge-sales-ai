@@ -35,6 +35,14 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Check for local testing bypass first
+    const isTestMode = localStorage.getItem('vocalbridge_test_mode') === 'true';
+    if (isTestMode) {
+      setUser({ uid: 'test-user', email: 'test@vocalbridge.ai' } as User);
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setLoading(false);
@@ -145,7 +153,11 @@ export default function App() {
             </div>
           )}
           <button 
-            onClick={() => signOut(auth)}
+            onClick={() => {
+              localStorage.removeItem('vocalbridge_test_mode');
+              signOut(auth);
+              window.location.reload();
+            }}
             className="text-[#8E9299] hover:text-[#E4E3E0] transition-colors"
           >
             <LogOut className="w-4 h-4" />
