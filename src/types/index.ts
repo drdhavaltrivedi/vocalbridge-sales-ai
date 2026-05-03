@@ -70,6 +70,32 @@ export interface Settings {
   lastUpdated: string;
 }
 
+export interface CampaignSettings {
+  delayBetweenCalls: number;
+  retryNoAnswer: boolean;
+  retryDelayMinutes: number;
+}
+
+export type CampaignStatus = 'scheduled' | 'running' | 'paused' | 'completed' | 'cancelled';
+
+export interface Campaign {
+  id: string;
+  name: string;
+  status: CampaignStatus;
+  clientIds: string[];
+  completedClientIds: string[];
+  skippedClientIds: string[];
+  currentClientId: string | null;
+  scheduledAt: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+  totalLeads: number;
+  completedCalls: number;
+  convertedCalls: number;
+  settings: CampaignSettings;
+}
+
 export type UserRole = 'admin' | 'agent';
 
 export enum OperationType {

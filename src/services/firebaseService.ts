@@ -14,7 +14,7 @@ import {
   onSnapshot
 } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { Client, Call, KnowledgeBaseDoc, OperationType, Settings, KnowledgeCategory } from '../types';
+import { Client, Call, KnowledgeBaseDoc, OperationType, Settings, KnowledgeCategory, Campaign } from '../types';
 
 function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
   const errInfo = {
@@ -227,6 +227,48 @@ export const firebaseService = {
       return { id: d.id, ...d.data() } as Settings;
     } catch (error) {
       handleFirestoreError(error, OperationType.GET, path);
+    }
+  },
+
+  // Campaigns
+  async getCampaigns() {
+    const path = 'campaigns';
+    try {
+      const q = query(collection(db, path), orderBy('createdAt', 'desc'));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Campaign));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
+    }
+  },
+
+  async getCampaign(id: string) {
+    const path = `campaigns/${id}`;
+    try {
+      const snap = await getDoc(doc(db, 'campaigns', id));
+      if (!snap.exists()) return null;
+      return { id: snap.id, ...snap.data() } as Campaign;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.GET, path);
+    }
+  },
+
+  async addCampaign(campaign: Omit<Campaign, 'id'>) {
+    const path = 'campaigns';
+    try {
+      const docRef = await addDoc(collection(db, path), campaign);
+      return docRef.id;
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, path);
+    }
+  },
+
+  async updateCampaign(id: string, updates: Partial<Campaign>) {
+    const path = `campaigns/${id}`;
+    try {
+      await updateDoc(doc(db, 'campaigns', id), updates as Record<string, unknown>);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, path);
     }
   },
 

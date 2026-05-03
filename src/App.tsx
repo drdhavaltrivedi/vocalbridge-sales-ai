@@ -11,6 +11,7 @@ import {
   LogOut,
   ChevronRight,
   Menu,
+  ListChecks,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './lib/utils';
@@ -23,6 +24,7 @@ import Login from './components/Login';
 import SettingsPage from './components/Settings';
 import LandingPage from './pages/LandingPage';
 import DocsPage from './pages/DocsPage';
+import CampaignManager from './pages/CampaignManager';
 import ErrorBoundary from './components/ErrorBoundary';
 
 const SIDEBAR_ITEMS = [
@@ -30,6 +32,7 @@ const SIDEBAR_ITEMS = [
   { id: 'clients', label: 'Clients', icon: Users, roles: ['admin', 'agent'], path: '/clients' },
   { id: 'calls', label: 'Call Monitor', icon: PhoneCall, roles: ['admin', 'agent'], path: '/calls' },
   { id: 'knowledge', label: 'Knowledge Base', icon: BookOpen, roles: ['admin'], path: '/knowledge' },
+  { id: 'campaigns', label: 'Campaigns', icon: ListChecks, roles: ['admin'], path: '/campaigns' },
   { id: 'settings', label: 'Settings', icon: Settings, roles: ['admin'], path: '/settings' },
 ];
 
@@ -242,6 +245,7 @@ function AppLayout({ userRole, setUserRole }: { userRole: UserRole; setUserRole:
                 <Route path="/calls" element={<ErrorBoundary><CallMonitor /></ErrorBoundary>} />
                 <Route path="/knowledge" element={<ErrorBoundary>{userRole === 'admin' ? <KnowledgeBase /> : <Navigate to="/dashboard" />}</ErrorBoundary>} />
                 <Route path="/settings" element={<ErrorBoundary>{userRole === 'admin' ? <SettingsPage /> : <Navigate to="/dashboard" />}</ErrorBoundary>} />
+                <Route path="/campaigns" element={<ErrorBoundary>{userRole === 'admin' ? <CampaignManager /> : <Navigate to="/dashboard" />}</ErrorBoundary>} />
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
               </Routes>
             </motion.div>
