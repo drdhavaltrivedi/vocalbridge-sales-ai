@@ -3,9 +3,9 @@ import { GoogleGenAI, Modality } from "@google/genai";
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export const MODELS = {
-  GENERAL: "gemini-3-flash-preview",
-  LIVE: "gemini-3.1-flash-live-preview",
-  TTS: "gemini-3.1-flash-tts-preview"
+  GENERAL: "gemini-2.0-flash",
+  LIVE: "gemini-2.0-flash-live-001",
+  TTS: "gemini-2.5-flash-preview-tts"
 };
 
 export const SALES_SYSTEM_INSTRUCTION = `
