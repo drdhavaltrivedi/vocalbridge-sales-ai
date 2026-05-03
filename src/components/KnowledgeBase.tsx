@@ -4,7 +4,7 @@ import { useDropzone } from 'react-dropzone';
 import { firebaseService } from '../services/firebaseService';
 import { processKnowledgeSource } from '../services/geminiService';
 import { KnowledgeBaseDoc, KnowledgeCategory } from '../types';
-import { cn } from '../lib/utils';
+import { cn, formatDate } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function KnowledgeBase() {
@@ -378,7 +378,7 @@ export default function KnowledgeBase() {
                   <span className="text-[10px] font-bold uppercase tracking-widest text-[#F27D26] bg-[#F27D26]/5 px-2 py-0.5 rounded">
                     {selectedDoc.category}
                   </span>
-                  <span className="text-[10px] font-mono text-[#8E9299]">Last updated: {new Date(selectedDoc.lastUpdated).toLocaleDateString()}</span>
+                  <span className="text-[10px] font-mono text-[#8E9299]">Last updated: {formatDate(selectedDoc.lastUpdated)}</span>
                 </div>
               </div>
               <button 

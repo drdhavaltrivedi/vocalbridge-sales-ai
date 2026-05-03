@@ -71,7 +71,27 @@ export const firebaseService = {
     }
   },
 
+  async deleteClient(id: string) {
+    const path = `clients/${id}`;
+    try {
+      await deleteDoc(doc(db, 'clients', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, path);
+    }
+  },
+
   // Calls
+  async getCalls() {
+    const path = 'calls';
+    try {
+      const q = query(collection(db, path), orderBy('startTime', 'desc'));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Call));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
+    }
+  },
+
   async addCall(call: Omit<Call, 'id'>) {
     const path = 'calls';
     try {

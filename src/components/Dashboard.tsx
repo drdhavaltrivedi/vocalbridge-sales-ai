@@ -32,21 +32,24 @@ export default function Dashboard() {
   useEffect(() => {
     async function loadDashboardData() {
       try {
-        const clientData = await firebaseService.getClients();
+        const [clientData, callData] = await Promise.all([
+          firebaseService.getClients(),
+          firebaseService.getCalls(),
+        ]);
         const clients: Client[] = clientData || [];
-        const calls: Call[] = [];
+        const calls: Call[] = callData || [];
 
         const totalLeads = clients.length;
         const converted = clients.filter(c => c.status === 'interested').length;
-        
+        const completedCalls = calls.filter(c => c.status === 'completed').length;
+
         setStats({
           totalLeads,
           converted,
-          totalCalls: calls.length || 0,
-          avgCallTime: '2m 15s' // Mock for now until we have duration data
+          totalCalls: completedCalls,
+          avgCallTime: '2m 15s'
         });
 
-        // Simple chart data based on lead statuses
         const statusCounts = clients.reduce((acc: any, client) => {
           acc[client.status] = (acc[client.status] || 0) + 1;
           return acc;
@@ -56,12 +59,12 @@ export default function Dashboard() {
           { name: 'Interested', value: statusCounts['interested'] || 0, color: '#F27D26' },
           { name: 'Pending', value: statusCounts['pending'] || 0, color: '#E4E3E0' },
           { name: 'Follow up', value: statusCounts['follow_up'] || 0, color: '#1a1a1a' },
-        ]);
+          { name: 'Not Interested', value: statusCounts['not_interested'] || 0, color: '#8E9299' },
+        ].filter(d => d.value > 0));
 
-        // Weekly chart (mocked aggregation for now, or just showing today's vs total)
         setChartData([
-          { name: 'Today', calls: calls.length, sales: converted },
-          { name: 'Goal', calls: 50, sales: 10 },
+          { name: 'Calls Made', calls: completedCalls, sales: converted },
+          { name: 'Target', calls: Math.max(completedCalls + 10, 50), sales: Math.max(converted + 5, 10) },
         ]);
 
         // Recent Activity

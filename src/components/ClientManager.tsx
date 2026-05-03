@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, Download, Search, Plus, Filter, MoreVertical, Phone, Users, X } from 'lucide-react';
+import { Upload, Search, Plus, Users, X, Trash2 } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import Papa from 'papaparse';
 import { firebaseService } from '../services/firebaseService';
@@ -22,6 +22,12 @@ export default function ClientManager() {
   async function loadClients() {
     const data = await firebaseService.getClients();
     if (data) setClients(data);
+  }
+
+  async function handleDeleteClient(id: string) {
+    if (!confirm('Delete this lead? This cannot be undone.')) return;
+    await firebaseService.deleteClient(id);
+    await loadClients();
   }
 
   async function handleAddClient(e: React.FormEvent) {
@@ -69,6 +75,10 @@ export default function ClientManager() {
           }
           await loadClients();
           setIsUploading(false);
+        },
+        error: () => {
+          setIsUploading(false);
+          alert('Failed to parse CSV file. Please check that it has headers: name, phone, email, info, tags');
         }
       });
     }
@@ -181,6 +191,15 @@ export default function ClientManager() {
                     </td>
                     <td className="px-6 py-4 text-xs text-[#8E9299]">
                       {formatDate(client.createdAt)}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <button
+                        onClick={() => handleDeleteClient(client.id)}
+                        className="p-2 text-[#8E9299] hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete lead"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </td>
                   </tr>
                 ))

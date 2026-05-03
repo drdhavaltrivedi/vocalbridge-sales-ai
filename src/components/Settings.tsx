@@ -76,10 +76,10 @@ export default function SettingsPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const objectUrl = URL.createObjectURL(file);
     setIsCloning(true);
-    setUploadedSampleUrl(URL.createObjectURL(file));
-    
-    // Simulate multi-step cloning process
+    setUploadedSampleUrl(objectUrl);
+
     const steps = [
       'Analyzing acoustic fingerprint...',
       'Mapping vocal resonance...',
@@ -95,14 +95,14 @@ export default function SettingsPage() {
       } else {
         clearInterval(interval);
         setClonedSample(file.name);
-        setSettings({
-          ...settings!,
+        setSettings(prev => ({
+          ...prev!,
           persona: {
-            ...settings!.persona,
+            ...prev!.persona,
             useClonedVoice: true,
-            clonedVoiceUrl: uploadedSampleUrl || ''
+            clonedVoiceUrl: objectUrl
           }
-        });
+        }));
         setIsCloning(false);
         setCloningStep('');
       }

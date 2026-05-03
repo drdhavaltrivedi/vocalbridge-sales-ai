@@ -33,4 +33,3 @@ coverage/
 .agentignore
 .mcp/
 .mcpignore
-vite-env.d.ts
