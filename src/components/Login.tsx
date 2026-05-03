@@ -5,9 +5,9 @@ import { auth, db } from '../lib/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 export default function Login() {
-  const handleLogin = async () => {
-    /* 
-    // Google Auth - Disabled for Testing Mode
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+  const handleGoogleLogin = async () => {
     const provider = new GoogleAuthProvider();
     try {
       const result = await signInWithPopup(auth, provider);
@@ -25,16 +25,14 @@ export default function Login() {
       }
     } catch (error) {
       console.error("Login failed:", error);
+      alert("Login failed. Please ensure you have added your domain to Firebase Authorized Domains.");
     }
-    */
-    
-    // Testing Mode: Local Bypass
+  };
+
+  const handleTestingMode = async () => {
     try {
-      // Set a flag in localStorage to bypass the auth check in App.tsx
       localStorage.setItem('vocalbridge_test_mode', 'true');
-      // We still try to sign in anonymously if possible, but the flag will be our primary bypass
       await signInAnonymously(auth).catch(() => console.warn("Firebase Anonymous Auth disabled, using local bypass"));
-      // Force a reload or state change if needed, but App.tsx will check this on mount/update
       window.location.reload(); 
     } catch (error) {
       console.error("Bypass failed:", error);
@@ -51,18 +49,28 @@ export default function Login() {
         <p className="text-[#8E9299]">The future of automated sales calls.<br/>Sign in to access your dashboard.</p>
         
         <div className="space-y-4 mt-8">
+          {/* Main Login Option */}
           <button
-            onClick={handleLogin}
-            className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-[#F27D26] text-[#1a1a1a] rounded-2xl font-bold hover:opacity-90 transition-all group"
+            onClick={handleGoogleLogin}
+            className="w-full flex items-center justify-center gap-3 px-6 py-4 bg-[#1a1a1a] text-white rounded-2xl font-bold hover:opacity-90 transition-all group"
           >
-            <Beaker className="w-5 h-5 group-hover:animate-pulse" />
-            Enter Testing Mode
+            <LogIn className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            Sign in with Google
           </button>
-          
-          <div className="relative">
+
+          {/* Testing Mode - Always available as fallback, but labeled differently */}
+          <div className="relative py-2">
             <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-[#1a1a1a]/5"></span></div>
-            <div className="relative flex justify-center text-xs uppercase"><span className="bg-white px-2 text-[#8E9299]">Production login disabled</span></div>
+            <div className="relative flex justify-center text-[10px] uppercase tracking-widest"><span className="bg-white px-2 text-[#8E9299]">Or for testing</span></div>
           </div>
+
+          <button
+            onClick={handleTestingMode}
+            className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-gray-50 text-[#8E9299] border border-gray-100 rounded-2xl font-bold hover:bg-gray-100 transition-all group"
+          >
+            <Beaker className="w-4 h-4" />
+            {isLocal ? 'Enter Testing Mode (Local)' : 'Anonymous Demo Access'}
+          </button>
         </div>
         
         <p className="text-[10px] text-[#8E9299] uppercase tracking-widest mt-12">
