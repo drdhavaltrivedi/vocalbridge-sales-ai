@@ -1,0 +1,123 @@
+{
+  "entities": {
+    "Settings": {
+      "title": "Settings",
+      "description": "Global application and AI configurations",
+      "type": "object",
+      "properties": {
+        "persona": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "tone": { "type": "string" },
+            "speechPatterns": { "type": "string" },
+            "systemInstruction": { "type": "string" },
+            "speed": { "type": "number" },
+            "pitch": { "type": "number" },
+            "inflection": { "type": "number" },
+            "voiceName": { "type": "string" },
+            "useClonedVoice": { "type": "boolean" },
+            "clonedVoiceUrl": { "type": "string" }
+          }
+        },
+        "focusAreas": { "type": "array", "items": { "type": "string" } },
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Client": {
+      "title": "Client",
+      "description": "Represents a potential customer for outbound calling",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name of the client" },
+        "phoneNumber": { "type": "string", "description": "Phone number including country code" },
+        "email": { "type": "string", "description": "Email address" },
+        "info": { "type": "string", "description": "Additional context about the client/lead" },
+        "status": { 
+          "type": "string", 
+          "enum": ["pending", "dialing", "called", "no_answer", "interested", "not_interested", "follow_up"],
+          "description": "Current status of the lead" 
+        },
+        "lastCallId": { "type": "string", "description": "Reference to the most recent call" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "phoneNumber", "status"]
+    },
+    "Call": {
+      "title": "Call",
+      "description": "Record of a voice call session",
+      "type": "object",
+      "properties": {
+        "clientId": { "type": "string" },
+        "clientName": { "type": "string" },
+        "status": { "type": "string", "enum": ["initiated", "active", "completed", "failed"] },
+        "startTime": { "type": "string", "format": "date-time" },
+        "endTime": { "type": "string", "format": "date-time" },
+        "transcript": { "type": "array", "items": { "type": "object" } },
+        "summary": { "type": "string" },
+        "sentiment": { "type": "string" },
+        "outcome": { "type": "string" },
+        "recordingUrl": { "type": "string" }
+      },
+      "required": ["clientId", "status", "startTime"]
+    },
+    "KnowledgeBase": {
+      "title": "KnowledgeBase",
+      "description": "Domain knowledge for the AI agent to reference",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "category": { "type": "string" },
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "content"]
+    },
+    "KnowledgeCategory": {
+      "title": "KnowledgeCategory",
+      "description": "Organizational categories for knowledge articles",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "color": { "type": "string" }
+      },
+      "required": ["name"]
+    }
+  },
+  "firestore": {
+    "/clients/{clientId}": {
+      "schema": "Client",
+      "description": "Collection of leads to be called"
+    },
+    "/calls/{callId}": {
+      "schema": "Call",
+      "description": "Historical record of calls"
+    },
+    "/knowledge_base/{docId}": {
+      "schema": "KnowledgeBase",
+      "description": "Information chunks for AI training/context"
+    },
+    "/knowledge_categories/{catId}": {
+      "schema": "KnowledgeCategory",
+      "description": "Categories for organizing knowledge docs"
+    },
+    "/settings/{configId}": {
+      "schema": "Settings",
+      "description": "Global app configuration including AI persona"
+    },
+    "/users/{userId}": {
+      "schema": {
+        "title": "User",
+        "type": "object",
+        "properties": {
+          "role": { "type": "string", "enum": ["admin", "agent"] },
+          "email": { "type": "string" }
+        }
+      },
+      "description": "System users and permissions"
+    }
+  }
+}

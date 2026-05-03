@@ -1,0 +1,6 @@
+{
+  "name": "VocalBridge Sales AI",
+  "description": "An advanced outbound sales automation platform featuring human-like AI voice agents, client data management, and real-time call analytics.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["AI Voice Agents", "Sales Automation", "Real-time Analytics", "Knowledge Base Sync", "Bulk Lead Management"]
+}

@@ -1,0 +1,16 @@
+{
+  "name": "VocalBridge Sales AI",
+  "short_name": "VocalBridge",
+  "description": "Next-Gen AI Sales Enablement Platform powered by Google Gemini.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FDFCFB",
+  "theme_color": "#F27D26",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

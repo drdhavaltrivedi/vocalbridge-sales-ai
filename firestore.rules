@@ -1,0 +1,87 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+
+    // --- Validation Helpers ---
+    function isValidClient(data) {
+      return data.keys().hasAll(['name', 'phoneNumber', 'status']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.phoneNumber is string && data.phoneNumber.matches('^\\+?[1-9]\\d{1,14}$') &&
+             data.status in ['pending', 'dialing', 'called', 'no_answer', 'interested', 'not_interested', 'follow_up'];
+    }
+
+    function isValidCall(data) {
+      return data.keys().hasAll(['clientId', 'status', 'startTime']) &&
+             isValidId(data.clientId) &&
+             data.status in ['initiated', 'active', 'completed', 'failed'] &&
+             data.startTime == request.time;
+    }
+
+    // --- Matches ---
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn() && request.auth.uid == userId && 
+                    incoming().role == 'agent'; // Default to agent on self-reg
+      allow update: if isAdmin();
+    }
+
+    match /clients/{clientId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn(); // In a real app, we might restrict this further
+      allow create: if isSignedIn() && isValidClient(incoming());
+      allow update: if isSignedIn() && (
+        isAdmin() || 
+        (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'lastCallId', 'updatedAt']) && 
+         incoming().updatedAt == request.time)
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /calls/{callId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn() && resource.data.clientId != null;
+      allow create: if isSignedIn() && isValidCall(incoming()) && 
+                    exists(/databases/$(database)/documents/clients/$(incoming().clientId));
+      allow update: if isSignedIn() && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'endTime', 'transcript', 'summary', 'sentiment', 'outcome']) &&
+        incoming().status in ['active', 'completed', 'failed']
+      );
+    }
+
+    match /knowledge_base/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /knowledge_categories/{catId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /settings/{configId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+  }
+}

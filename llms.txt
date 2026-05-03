@@ -1,0 +1,25 @@
+# VocalBridge Sales AI
+
+VocalBridge is an AI-powered sales enablement platform that automates and optimizes sales conversations using Google Gemini.
+
+## Core Functionality
+- **AI Sales Agents**: Autonomous agents that conduct sales calls.
+- **Call Monitoring**: Real-time transcriptions and Gemini-powered summaries.
+- **Knowledge Integration**: Ability to ingest product documents and URLs to train agents.
+- **ROI Analytics**: Automated projection of potential return on investment based on call outcomes.
+
+## Technical Details
+- **AI Models**: Uses `gemini-3-flash-preview` for summaries and `gemini-3.1-flash-tts-preview` for voice.
+- **Tech Stack**: React, TypeScript, Vite, Tailwind CSS, Express, Firebase.
+- **Authentication**: Firebase Auth with role-based access (Admin/Agent).
+- **Database**: Firestore for client leads, call logs, and knowledge segments.
+
+## Integration Points
+- **API**: Express server handling API requests at `/api`.
+- **Firebase**: Uses `firebase-applet-config.json` for initialization.
+- **Gemini**: Requires `GEMINI_API_KEY` for AI services.
+
+## Usage Patterns
+- Admins manage the knowledge base and system settings.
+- Agents manage client leads and monitor call performance.
+- AI Agents use a structured system instruction to maintain a professional sales persona.
