@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, Download, Search, Plus, Filter, MoreVertical, Phone, Users } from 'lucide-react';
+import { Upload, Download, Search, Plus, Filter, MoreVertical, Phone, Users, X } from 'lucide-react';
 import { useDropzone } from 'react-dropzone';
 import Papa from 'papaparse';
 import { firebaseService } from '../services/firebaseService';
 import { Client } from '../types';
-import { cn, formatPhoneNumber } from '../lib/utils';
+import { cn, formatPhoneNumber, formatDate } from '../lib/utils';
+import { motion, AnimatePresence } from 'motion/react';
 
 export default function ClientManager() {
   const [clients, setClients] = useState<Client[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [newClient, setNewClient] = useState({ name: '', phoneNumber: '', email: '', info: '', tags: '' });
 
   useEffect(() => {
     loadClients();
@@ -19,6 +22,24 @@ export default function ClientManager() {
   async function loadClients() {
     const data = await firebaseService.getClients();
     if (data) setClients(data);
+  }
+
+  async function handleAddClient(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newClient.name || !newClient.phoneNumber) return;
+    
+    await firebaseService.addClient({
+      name: newClient.name,
+      phoneNumber: newClient.phoneNumber,
+      email: newClient.email,
+      info: newClient.info,
+      status: 'pending',
+      tags: newClient.tags ? newClient.tags.split(',').map(t => t.trim()) : []
+    });
+    
+    setIsAddModalOpen(false);
+    setNewClient({ name: '', phoneNumber: '', email: '', info: '', tags: '' });
+    await loadClients();
   }
 
   // Get all unique tags
@@ -54,15 +75,16 @@ export default function ClientManager() {
   });
 
   const filteredClients = clients.filter(c => {
-    const matchesSearch = c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         c.phoneNumber.includes(searchTerm);
+    const nameMatch = c.name?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
+    const phoneMatch = c.phoneNumber?.includes(searchTerm) || false;
+    const matchesSearch = nameMatch || phoneMatch;
     const matchesTag = !selectedTag || (c.tags && c.tags.includes(selectedTag));
     return matchesSearch && matchesTag;
   });
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col lg:row gap-4 items-center justify-between">
+      <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
         <div className="relative flex-1 w-full max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8E9299]" />
           <input
@@ -105,7 +127,10 @@ export default function ClientManager() {
               <Upload className="w-4 h-4" /> Import CSV
             </button>
           </div>
-          <button className="flex items-center gap-2 px-6 py-2.5 bg-[#F27D26] text-[#1a1a1a] rounded-xl text-sm font-bold shadow-lg shadow-[#F27D26]/20 transition-all">
+          <button 
+            onClick={() => setIsAddModalOpen(true)}
+            className="flex items-center gap-2 px-6 py-2.5 bg-[#F27D26] text-[#1a1a1a] rounded-xl text-sm font-bold shadow-lg shadow-[#F27D26]/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+          >
             <Plus className="w-4 h-4" /> New Lead
           </button>
         </div>
@@ -144,7 +169,7 @@ export default function ClientManager() {
                         client.status === 'follow_up' ? 'bg-blue-100 text-blue-700' :
                         'bg-gray-100 text-gray-700'
                       )}>
-                        {client.status.replace('_', ' ')}
+                        {client.status?.replace('_', ' ') || 'Pending'}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -155,12 +180,7 @@ export default function ClientManager() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-xs text-[#8E9299]">
-                      {client.createdAt ? new Date(client.createdAt).toLocaleDateString() : '-'}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
-                        <MoreVertical className="w-4 h-4 text-[#8E9299]" />
-                      </button>
+                      {formatDate(client.createdAt)}
                     </td>
                   </tr>
                 ))
@@ -179,6 +199,115 @@ export default function ClientManager() {
           </table>
         </div>
       </div>
+
+      {/* Add Lead Modal */}
+      <AnimatePresence>
+        {isAddModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsAddModalOpen(false)}
+              className="absolute inset-0 bg-[#1a1a1a]/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl overflow-hidden"
+            >
+              <div className="p-8">
+                <div className="flex items-center justify-between mb-8">
+                  <div>
+                    <h3 className="text-2xl font-bold tracking-tight">Add New Lead</h3>
+                    <p className="text-sm text-[#8E9299]">Enter the details of the new prospective client.</p>
+                  </div>
+                  <button onClick={() => setIsAddModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
+                    <X className="w-5 h-5 text-[#8E9299]" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleAddClient} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-[#8E9299] ml-1">Full Name</label>
+                      <input 
+                        required
+                        type="text" 
+                        value={newClient.name}
+                        onChange={e => setNewClient({ ...newClient, name: e.target.value })}
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-[#F27D26]/10 outline-none transition-all"
+                        placeholder="John Doe"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold uppercase tracking-widest text-[#8E9299] ml-1">Phone Number</label>
+                      <input 
+                        required
+                        type="tel" 
+                        value={newClient.phoneNumber}
+                        onChange={e => setNewClient({ ...newClient, phoneNumber: e.target.value })}
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-[#F27D26]/10 outline-none transition-all"
+                        placeholder="+1 (555) 000-0000"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-[#8E9299] ml-1">Email Address</label>
+                    <input 
+                      type="email" 
+                      value={newClient.email}
+                      onChange={e => setNewClient({ ...newClient, email: e.target.value })}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-[#F27D26]/10 outline-none transition-all"
+                      placeholder="john@example.com"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-[#8E9299] ml-1">Company / Info</label>
+                    <input 
+                      type="text" 
+                      value={newClient.info}
+                      onChange={e => setNewClient({ ...newClient, info: e.target.value })}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-[#F27D26]/10 outline-none transition-all"
+                      placeholder="Tech Solutions Inc."
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase tracking-widest text-[#8E9299] ml-1">Tags (Comma separated)</label>
+                    <input 
+                      type="text" 
+                      value={newClient.tags}
+                      onChange={e => setNewClient({ ...newClient, tags: e.target.value })}
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-[#F27D26]/10 outline-none transition-all"
+                      placeholder="high-priority, web-design"
+                    />
+                  </div>
+
+                  <div className="flex gap-3 pt-4">
+                    <button 
+                      type="button"
+                      onClick={() => setIsAddModalOpen(false)}
+                      className="flex-1 px-6 py-3 bg-gray-100 text-[#8E9299] rounded-xl font-bold hover:bg-gray-200 transition-all"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      type="submit"
+                      className="flex-1 px-6 py-3 bg-[#1a1a1a] text-white rounded-xl font-bold hover:bg-[#1a1a1a]/90 transition-all shadow-lg"
+                    >
+                      Create Lead
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
