@@ -32,12 +32,9 @@ export default function Dashboard() {
   useEffect(() => {
     async function loadDashboardData() {
       try {
-        const [clients, calls] = await Promise.all([
-          firebaseService.getClients() || [],
-          // Note: In a real app, you might want a getCalls method in firebaseService
-          // For now, I'll assume we can fetch them or simulate aggregation if not yet implemented
-          [] as Call[] 
-        ]);
+        const clientData = await firebaseService.getClients();
+        const clients: Client[] = clientData || [];
+        const calls: Call[] = [];
 
         const totalLeads = clients.length;
         const converted = clients.filter(c => c.status === 'interested').length;

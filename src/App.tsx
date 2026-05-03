@@ -25,6 +25,8 @@ import CallMonitor from './components/CallMonitor';
 import KnowledgeBase from './components/KnowledgeBase';
 import Login from './components/Login';
 import SettingsPage from './components/Settings';
+import LandingPage from './pages/LandingPage';
+import DocsPage from './pages/DocsPage';
 
 function AppLayout({ userRole, setUserRole }: { userRole: UserRole, setUserRole: (role: UserRole) => void }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -199,13 +201,21 @@ export default function App() {
     );
   }
 
-  if (!user) {
-    return <Login />;
-  }
-
   return (
     <BrowserRouter>
-      <AppLayout userRole={userRole} setUserRole={setUserRole} />
+      <Routes>
+        {/* Public routes */}
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/docs" element={<DocsPage />} />
+        <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
+
+        {/* Protected app routes */}
+        {user ? (
+          <Route path="/*" element={<AppLayout userRole={userRole} setUserRole={setUserRole} />} />
+        ) : (
+          <Route path="/*" element={<Navigate to="/login" replace />} />
+        )}
+      </Routes>
     </BrowserRouter>
   );
 }
