@@ -105,6 +105,21 @@ export const firebaseService = {
     }
   },
 
+  async getCallsByClientId(clientId: string) {
+    const path = 'calls';
+    try {
+      const q = query(
+        collection(db, path),
+        where('clientId', '==', clientId),
+        orderBy('startTime', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Call));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.LIST, path);
+    }
+  },
+
   async updateCall(id: string, updates: Partial<Call>) {
     const path = `calls/${id}`;
     try {
