@@ -104,12 +104,18 @@ export default function KnowledgeBase() {
     if (!urlInput) return;
     setIsProcessing(true);
     try {
+      // Ensure the URL has a protocol
+      let validUrl = urlInput.trim();
+      if (!/^https?:\/\//i.test(validUrl)) {
+        validUrl = `https://${validUrl}`;
+      }
+
       // In a real app, we'd have a server-side proxy to scrape. 
-      // For this demo, we'll simulate the scrape result or ask Gemini to "imagine" based on URL if permitted.
-      const simulatedScrape = `Information retrieved from ${urlInput}: [Comprehensive technical specifications and pricing for TechCloud v4]`;
+      const simulatedScrape = `Information retrieved from ${validUrl}: [Comprehensive technical specifications and pricing for the product]`;
       const processedContent = await processKnowledgeSource('url', simulatedScrape);
+      
       setEditingDoc({
-        title: new URL(urlInput).hostname,
+        title: new URL(validUrl).hostname,
         content: processedContent,
         category: 'Weblink'
       });
@@ -117,6 +123,7 @@ export default function KnowledgeBase() {
       setUrlInput('');
     } catch (error) {
       console.error("Failed to process URL:", error);
+      alert("Please enter a valid URL (e.g., https://example.com)");
     } finally {
       setIsProcessing(false);
     }
