@@ -42,6 +42,8 @@ export default function CallMonitor() {
   const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const callStartRef = useRef<number>(0);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
+  const modeRef = useRef<CallMode>('idle');
+  const selectedClientRef = useRef<Client | null>(null);
 
   useEffect(() => {
     loadClients();
@@ -52,6 +54,9 @@ export default function CallMonitor() {
       wsRef.current?.close();
     };
   }, []);
+
+  useEffect(() => { modeRef.current = mode; }, [mode]);
+  useEffect(() => { selectedClientRef.current = selectedClient; }, [selectedClient]);
 
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -117,7 +122,7 @@ export default function CallMonitor() {
         },
         onCallEnded: async (data) => {
           stopDurationTimer();
-          await finishCall(callId, selectedClient, data.transcript);
+          await finishCall(callId, selectedClientRef.current!, data.transcript);
         },
         onError: (err) => {
           setError(`Connection error: ${err.message}. Transcript will update when available.`);
@@ -126,13 +131,13 @@ export default function CallMonitor() {
 
       // If call rings but doesn't connect within 30s, show timeout
       setTimeout(() => {
-        if (mode === 'dialing') {
+        if (modeRef.current === 'dialing') {
           setError('Call is ringing — waiting for lead to answer...');
         }
       }, 30_000);
 
     } catch (err: any) {
-      setError(err.message);
+      setError(err instanceof Error ? err.message : String(err));
       setMode('idle');
     }
   }
