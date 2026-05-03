@@ -399,7 +399,7 @@ async function startServer() {
   //   4. Gemini Live streams AI voice (PCM 24kHz) → we resample/encode → Twilio
   //   5. Gemini Live provides real-time transcription for both sides
   //
-  const streamWss = new WebSocketServer({ server: httpServer, path: "/ws/stream" });
+  const streamWss = new WebSocketServer({ noServer: true });
 
   streamWss.on("connection", async (ws, req) => {
     const url    = new URL(req.url ?? "/", "ws://localhost");
@@ -575,8 +575,7 @@ After they respond, continue the conversation naturally — listen, acknowledge 
     });
   });
 
-  // ── WebSocket: frontend real-time transcript updates ──────────────
-  const frontendWss = new WebSocketServer({ server: httpServer, path: "/ws/calls" });
+  const frontendWss = new WebSocketServer({ noServer: true });
 
   frontendWss.on("connection", (ws, req) => {
     const url    = new URL(req.url ?? "/", "ws://localhost");
@@ -599,6 +598,22 @@ After they respond, continue the conversation naturally — listen, acknowledge 
       if (frontendSockets.get(callId) === ws) frontendSockets.delete(callId);
       console.log(`[WS] Frontend disconnected for callId=${callId}`);
     });
+  });
+
+  // ── Handle HTTP Upgrades manually to support multiple WebSocket paths ──
+  httpServer.on("upgrade", (request, socket, head) => {
+    const pathname = new URL(request.url || "/", "ws://localhost").pathname;
+
+    if (pathname === "/ws/stream") {
+      streamWss.handleUpgrade(request, socket as any, head, (ws) => {
+        streamWss.emit("connection", ws, request);
+      });
+    } else if (pathname === "/ws/calls") {
+      frontendWss.handleUpgrade(request, socket as any, head, (ws) => {
+        frontendWss.emit("connection", ws, request);
+      });
+    }
+    // For any other path (like Vite HMR in dev mode), we do nothing and let other listeners handle it.
   });
 
   // ── Vite middleware / static files ────────────────────────────────
