@@ -33,57 +33,12 @@ const pieData = [
   { name: 'Not interested', value: 40, color: '#1a1a1a' },
 ];
 
-import { firebaseService } from '../services/firebaseService';
-
 export default function Dashboard() {
-  const [isSeeding, setIsSeeding] = React.useState(false);
-
-  const handleSeedData = async () => {
-    setIsSeeding(true);
-    try {
-      const clientId = await firebaseService.addClient({
-        name: "John Demo User",
-        email: "john@example.com",
-        phoneNumber: "+15550123456",
-        status: "pending",
-        assignedAgent: "Test Agent"
-      });
-
-      if (clientId) {
-        await firebaseService.addCall({
-          clientId: clientId,
-          status: "completed",
-          transcript: "Agent: Hello John, are you interested in our AI services?\nJohn: Yes, tell me more.",
-          summary: "Client expressed interest in AI services and requested more information.",
-          sentiment: "Positive",
-          outcome: "interested"
-        });
-        alert("Dummy data seeded successfully! You can now see the data in the Clients and Call Monitor tabs.");
-      }
-    } catch (error) {
-      console.error("Seeding failed:", error);
-      alert("Failed to seed data. Check console for details.");
-    } finally {
-      setIsSeeding(false);
-    }
-  };
-
   return (
     <div className="space-y-8">
-      {/* Header with Seed Button */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Performance Overview</h2>
-          <p className="text-sm text-[#8E9299]">Track your sales metrics and AI performance.</p>
-        </div>
-        <button
-          onClick={handleSeedData}
-          disabled={isSeeding}
-          className="flex items-center gap-2 px-6 py-2.5 bg-[#F27D26] text-[#1a1a1a] rounded-xl text-sm font-bold hover:opacity-90 transition-all disabled:opacity-50"
-        >
-          {isSeeding ? <Clock className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-          {isSeeding ? 'Seeding...' : 'Seed Test Data'}
-        </button>
+      <div>
+        <h2 className="text-2xl font-bold tracking-tight">Performance Overview</h2>
+        <p className="text-sm text-[#8E9299]">Track your sales metrics and AI performance.</p>
       </div>
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
