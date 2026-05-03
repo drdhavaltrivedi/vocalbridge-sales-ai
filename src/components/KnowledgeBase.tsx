@@ -71,22 +71,27 @@ export default function KnowledgeBase() {
     const reader = new FileReader();
 
     reader.onload = async (e) => {
-      const text = e.target?.result as string;
       try {
-        const processedContent = await processKnowledgeSource('file', text);
+        const base64Data = (e.target?.result as string).split(',')[1];
+        const processedContent = await processKnowledgeSource('file', '', {
+          data: base64Data,
+          mimeType: file.type
+        });
+        
         setEditingDoc({
           title: file.name.split('.')[0],
           content: processedContent,
-          category: 'Document'
+          category: file.type.includes('pdf') ? 'PDF Document' : 'Document'
         });
         setIsEditing(true);
       } catch (error) {
         console.error("Failed to process document:", error);
+        alert("Failed to process the document. Please ensure it's a valid PDF or text file.");
       } finally {
         setIsProcessing(false);
       }
     };
-    reader.readAsText(file);
+    reader.readAsDataURL(file);
   };
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({

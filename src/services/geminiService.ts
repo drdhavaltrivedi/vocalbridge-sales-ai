@@ -49,23 +49,34 @@ export async function generateSummary(clientName: string, transcript: string) {
   return JSON.parse(jsonStr);
 }
 
-export async function processKnowledgeSource(type: 'file' | 'url', content: string | File) {
+export async function processKnowledgeSource(type: 'file' | 'url', content: string, fileData?: { data: string, mimeType: string }) {
   let prompt = "";
+  let parts: any[] = [];
+
   if (type === 'url') {
     prompt = `Extract the core product information, FAQs, and service details from this text (which was scraped from a website). Format it as a clean, structured knowledge base article:
     
     CONTENT:
     ${content}`;
+    parts = [{ text: prompt }];
   } else {
-    prompt = `Summarize and structure this document content for inclusion in a sales AI knowledge base. Focus on technical specs, pricing, and FAQs:
+    prompt = `Summarize and structure this document content for inclusion in a sales AI knowledge base. Focus on technical specs, pricing, and FAQs. Provide the output in a clean, professional format.`;
     
-    CONTENT:
-    ${content}`;
+    if (fileData) {
+      // Multimodal processing (PDF, Image, etc.)
+      parts = [
+        { inlineData: { data: fileData.data, mimeType: fileData.mimeType } },
+        { text: prompt }
+      ];
+    } else {
+      // Fallback for text content
+      parts = [{ text: `${prompt}\n\nCONTENT:\n${content}` }];
+    }
   }
 
   const response = await ai.models.generateContent({
     model: MODELS.GENERAL,
-    contents: prompt
+    contents: [{ role: 'user', parts }]
   });
 
   return response.text || "";
