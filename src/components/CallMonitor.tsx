@@ -8,7 +8,7 @@ import { cn } from '../lib/utils';
 import { generateSummary } from '../services/geminiService';
 import { firebaseService } from '../services/firebaseService';
 import { initiateCall, endCall, connectTranscriptStream, TranscriptLine } from '../services/callService';
-import { Client, Settings } from '../types';
+import { Client, Settings, KnowledgeBaseDoc } from '../types';
 
 type CallMode = 'idle' | 'selecting' | 'dialing' | 'active' | 'analyzing' | 'summary' | 'demo_dialing' | 'demo_active';
 
@@ -30,6 +30,7 @@ export default function CallMonitor() {
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [knowledgeDocs, setKnowledgeDocs] = useState<KnowledgeBaseDoc[]>([]);
   const [activeCallId, setActiveCallId] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<Array<TranscriptLine & { time: string }>>([]);
   const [callDuration, setCallDuration] = useState('00:00');
@@ -48,6 +49,7 @@ export default function CallMonitor() {
   useEffect(() => {
     loadClients();
     loadSettings();
+    loadKnowledgeBase();
     return () => {
       if (transcriptIntervalRef.current) clearInterval(transcriptIntervalRef.current);
       if (durationIntervalRef.current) clearInterval(durationIntervalRef.current);
@@ -70,6 +72,11 @@ export default function CallMonitor() {
   async function loadSettings() {
     const data = await firebaseService.getSettings();
     if (data) setSettings(data);
+  }
+
+  async function loadKnowledgeBase() {
+    const docs = await firebaseService.getKnowledgeBase();
+    if (docs) setKnowledgeDocs(docs);
   }
 
   function startDurationTimer() {
@@ -103,9 +110,19 @@ export default function CallMonitor() {
       const { callId } = await initiateCall({
         clientName: selectedClient.name,
         phoneNumber: selectedClient.phoneNumber,
+        clientInfo: selectedClient.info,
+        clientTags: selectedClient.tags,
         voiceName: settings?.persona.voiceName ?? 'Kore',
         agentName: settings?.persona.name ?? 'Alex',
+        tone: settings?.persona.tone,
+        speechPatterns: settings?.persona.speechPatterns,
+        focusAreas: settings?.focusAreas,
         systemInstruction: settings?.persona.systemInstruction,
+        knowledgeBase: knowledgeDocs.map(d => ({
+          title: d.title,
+          content: d.content,
+          category: d.category,
+        })),
       });
 
       setActiveCallId(callId);

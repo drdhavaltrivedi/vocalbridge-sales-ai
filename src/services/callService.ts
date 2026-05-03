@@ -4,12 +4,24 @@ export interface TranscriptLine {
   time: string;
 }
 
+export interface KnowledgeDoc {
+  title: string;
+  content: string;
+  category?: string;
+}
+
 export interface CallInitiateParams {
   clientName: string;
   phoneNumber: string;
+  clientInfo?: string;
+  clientTags?: string[];
   voiceName?: string;
   agentName?: string;
+  tone?: string;
+  speechPatterns?: string;
+  focusAreas?: string[];
   systemInstruction?: string;
+  knowledgeBase?: KnowledgeDoc[];
 }
 
 export interface CallInitiateResult {
@@ -26,7 +38,7 @@ export interface TranscriptCallbacks {
   onError: (err: Error) => void;
 }
 
-// When VITE_SERVER_URL is set (e.g. on Vercel pointing at Railway),
+// When VITE_SERVER_URL is set (e.g. on Vercel pointing at Render),
 // use it as the base for all API and WebSocket calls.
 // In local dev it is empty so relative URLs are used (same-origin Express server).
 const SERVER_URL = ((import.meta.env.VITE_SERVER_URL as string | undefined) ?? "").replace(/\/$/, "");

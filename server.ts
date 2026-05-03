@@ -2,7 +2,7 @@ import express from "express";
 import { createServer } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import twilio from "twilio";
-import { GoogleGenAI, Modality, type Session, type LiveServerMessage } from "@google/genai";
+import { GoogleGenAI, Modality, StartSensitivity, EndSensitivity, type Session, type LiveServerMessage } from "@google/genai";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -31,11 +31,18 @@ interface TranscriptLine {
   time: string;
 }
 
+interface KnowledgeDoc {
+  title: string;
+  content: string;
+  category?: string;
+}
+
 interface CallSession {
   callId: string;
   callSid: string;
   clientName: string;
   clientPhone: string;
+  agentName: string;
   history: TranscriptLine[];
   voiceName: string;
   systemInstruction: string;
@@ -116,18 +123,82 @@ function emitToFrontend(callId: string, payload: Record<string, unknown>) {
   if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(payload));
 }
 
-// ── Default system instruction ─────────────────────────────────────────────────
+// ── System instruction builder ─────────────────────────────────────────────────
 
-const DEFAULT_SYSTEM_INSTRUCTION = `You are a highly skilled, empathetic, and persuasive Sales Professional named Alex.
-Your goal is to sell our technical products and services.
+function buildSystemInstruction(params: {
+  agentName: string;
+  clientName: string;
+  tone?: string;
+  speechPatterns?: string;
+  focusAreas?: string[];
+  baseInstruction?: string;
+  clientInfo?: string;
+  clientTags?: string[];
+  knowledgeBase?: KnowledgeDoc[];
+}): string {
+  const {
+    agentName, clientName, tone, speechPatterns,
+    focusAreas, baseInstruction, clientInfo, clientTags, knowledgeBase,
+  } = params;
 
-CORE RULES:
-1. NEVER mention you are an AI. If asked, say you are a senior account manager.
-2. Tone: Professional, warm, and rapport-building.
-3. Handle objections with curiosity: "That's a valid concern — many clients felt the same until they saw the ROI."
-4. If the customer is busy, suggest a specific callback time.
-5. Be concise — 2 to 4 sentences per response. This is a phone call, not an email.
-6. Goal: Secure a commitment, a demo booking, or a follow-up meeting.`;
+  const sections: string[] = [];
+
+  // Identity
+  sections.push(
+    baseInstruction?.trim() ||
+    `You are ${agentName}, a highly skilled, empathetic, and persuasive Sales Professional making an outbound call.`
+  );
+
+  // Voice & style
+  const styleLines: string[] = [];
+  if (tone)           styleLines.push(`Tone: ${tone}`);
+  if (speechPatterns) styleLines.push(`Speech style: ${speechPatterns}`);
+  if (styleLines.length) sections.push(`VOICE & STYLE:\n${styleLines.join("\n")}`);
+
+  // Focus areas
+  if (focusAreas?.length) {
+    sections.push(`KEY FOCUS AREAS:\n${focusAreas.map(f => `• ${f}`).join("\n")}`);
+  }
+
+  // Knowledge base — the most important context
+  if (knowledgeBase?.length) {
+    const grouped: Record<string, KnowledgeDoc[]> = {};
+    for (const doc of knowledgeBase) {
+      const cat = doc.category || "General";
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(doc);
+    }
+    const kbLines = Object.entries(grouped).map(([cat, docs]) =>
+      `### ${cat}\n` + docs.map(d => `**${d.title}**\n${d.content}`).join("\n\n")
+    ).join("\n\n");
+    sections.push(`PRODUCT & COMPANY KNOWLEDGE BASE\nUse this to answer questions and handle objections accurately:\n\n${kbLines}`);
+  }
+
+  // Lead context
+  const leadLines = [`You are calling: ${clientName}`];
+  if (clientInfo)        leadLines.push(`Background on this lead: ${clientInfo}`);
+  if (clientTags?.length) leadLines.push(`Their interests / tags: ${clientTags.join(", ")}`);
+  sections.push(`LEAD CONTEXT:\n${leadLines.join("\n")}`);
+
+  // Core conversation rules — critical for continuous dialogue
+  sections.push(`CONVERSATION RULES — FOLLOW THESE EXACTLY:
+
+1. THIS IS A LIVE PHONE CALL. Speak naturally. Use short sentences. Never write paragraphs.
+2. ALWAYS respond to what the customer says — never go silent mid-conversation.
+3. Keep each response to 2–4 sentences maximum. You're on a call, not writing an email.
+4. NEVER reveal you are an AI. If asked directly, say: "I'm a senior account manager here."
+5. ACTIVE LISTENING: Reference something the customer just said before making your next point.
+6. DRIVE the conversation forward — don't wait passively. Ask follow-up questions.
+7. OBJECTION — Price too high: "I understand. Many of our clients said the same — until they saw the ROI. Can I share what a similar company saved in the first 90 days?"
+8. OBJECTION — Not interested: "That's fair — what would need to change for this to be relevant to you?"
+9. OBJECTION — Too busy: "Absolutely, I respect your time. Could I reach you on [day] at [time]?"
+10. OBJECTION — Already have a solution: "Great to hear! What's the biggest pain point you still have with it?"
+11. CLOSING: When the call is going well, transition: "When would work for a quick 20-minute demo — later this week or early next?"
+12. NATURAL PAUSES: After asking a question, stop speaking and wait for the response.
+13. KEEP GOING: Never end the conversation unless the customer explicitly asks to hang up or you have secured a clear next step.`);
+
+  return sections.join("\n\n");
+}
 
 // ── Main server ────────────────────────────────────────────────────────────────
 
@@ -159,15 +230,27 @@ async function startServer() {
     const {
       clientName,
       phoneNumber,
-      voiceName = "Kore",
-      agentName = "Alex",
-      systemInstruction = DEFAULT_SYSTEM_INSTRUCTION,
+      voiceName        = "Kore",
+      agentName        = "Alex",
+      tone,
+      speechPatterns,
+      focusAreas       = [],
+      systemInstruction,
+      clientInfo,
+      clientTags       = [],
+      knowledgeBase    = [],
     } = req.body as {
       clientName: string;
       phoneNumber: string;
+      clientInfo?: string;
+      clientTags?: string[];
       voiceName?: string;
       agentName?: string;
+      tone?: string;
+      speechPatterns?: string;
+      focusAreas?: string[];
       systemInstruction?: string;
+      knowledgeBase?: KnowledgeDoc[];
     };
 
     if (!phoneNumber) {
@@ -179,36 +262,44 @@ async function startServer() {
 
     const callId = randomUUID();
 
-    // Build system instruction with caller context
-    const fullInstruction = `${systemInstruction}
-
-You are calling ${clientName}. Your name is ${agentName}. When the call connects, greet them warmly and introduce yourself concisely.`;
+    const fullInstruction = buildSystemInstruction({
+      agentName,
+      clientName,
+      tone,
+      speechPatterns,
+      focusAreas,
+      baseInstruction: systemInstruction,
+      clientInfo,
+      clientTags,
+      knowledgeBase,
+    });
 
     try {
       const twimlUrl = `${PUBLIC_URL}/api/voice/twiml?callId=${callId}`;
       const call = await twilioClient.calls.create({
-        to:                     phoneNumber,
-        from:                   process.env.TWILIO_PHONE_NUMBER!,
-        url:                    twimlUrl,
-        statusCallback:         `${PUBLIC_URL}/api/voice/status`,
-        statusCallbackMethod:   "POST",
-        statusCallbackEvent:    ["initiated", "ringing", "answered", "completed", "failed", "busy", "no-answer"],
+        to:                   phoneNumber,
+        from:                 process.env.TWILIO_PHONE_NUMBER!,
+        url:                  twimlUrl,
+        statusCallback:       `${PUBLIC_URL}/api/voice/status`,
+        statusCallbackMethod: "POST",
+        statusCallbackEvent:  ["initiated", "ringing", "answered", "completed", "failed", "busy", "no-answer"],
       });
 
       const session: CallSession = {
         callId,
-        callSid: call.sid,
+        callSid:          call.sid,
         clientName,
-        clientPhone: phoneNumber,
-        history: [],
+        clientPhone:      phoneNumber,
+        agentName,
+        history:          [],
         voiceName,
         systemInstruction: fullInstruction,
-        status: "initiated",
+        status:           "initiated",
       };
       activeCalls.set(callId, session);
       callsBySid.set(call.sid, callId);
 
-      console.log(`[Call] Initiated callId=${callId} callSid=${call.sid} to=${phoneNumber}`);
+      console.log(`[Call] Initiated callId=${callId} callSid=${call.sid} to=${phoneNumber} kb_docs=${knowledgeBase.length}`);
       res.json({ callId, callSid: call.sid, status: "initiated" });
     } catch (err: any) {
       console.error("[Call] Initiation failed:", err.message);
@@ -341,13 +432,32 @@ You are calling ${clientName}. Your name is ${agentName}. When the call connects
           systemInstruction: session.systemInstruction,
           inputAudioTranscription:  {},
           outputAudioTranscription: {},
+          // Keep VAD sensitivity balanced — responds quickly but doesn't cut off customer
+          realtimeInputConfig: {
+            automaticActivityDetection: {
+              disabled: false,
+              startOfSpeechSensitivity: StartSensitivity.START_SENSITIVITY_LOW,
+              endOfSpeechSensitivity:   EndSensitivity.END_SENSITIVITY_LOW,
+            },
+          },
         },
         callbacks: {
           onopen: () => {
             console.log(`[Gemini Live] Connected for callId=${callId}`);
-            // Prompt the agent to speak its opening greeting
+            // Tell the agent to deliver its opening and then drive the conversation.
+            // "turnComplete: false" keeps the session in an active listening/responding
+            // loop rather than treating this as a single-shot exchange.
             liveSession!.sendClientContent({
-              turns: [{ role: "user", parts: [{ text: `[The call just connected. Start with your opening greeting now.]` }] }],
+              turns: [{
+                role: "user",
+                parts: [{
+                  text: `The phone call just connected. ${session.clientName} has answered.
+
+Deliver your warm opening greeting now as ${session.agentName}. Introduce yourself, briefly state why you're calling, and end with an open question to engage them.
+
+After they respond, continue the conversation naturally — listen, acknowledge what they say, and keep driving toward your goal. Do NOT stop after the greeting. Keep talking and responding for the entire call.`,
+                }],
+              }],
               turnComplete: true,
             });
             emitToFrontend(callId, { type: "call_answered", callId });
