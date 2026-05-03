@@ -26,8 +26,17 @@ export interface TranscriptCallbacks {
   onError: (err: Error) => void;
 }
 
+// When VITE_SERVER_URL is set (e.g. on Vercel pointing at Railway),
+// use it as the base for all API and WebSocket calls.
+// In local dev it is empty so relative URLs are used (same-origin Express server).
+const SERVER_URL = ((import.meta.env.VITE_SERVER_URL as string | undefined) ?? "").replace(/\/$/, "");
+
+const WS_BASE = SERVER_URL
+  ? SERVER_URL.replace(/^https/, "wss").replace(/^http/, "ws")
+  : `${typeof window !== "undefined" && window.location.protocol === "https:" ? "wss" : "ws"}://${typeof window !== "undefined" ? window.location.host : "localhost"}`;
+
 export async function initiateCall(params: CallInitiateParams): Promise<CallInitiateResult> {
-  const res = await fetch("/api/calls/initiate", {
+  const res = await fetch(`${SERVER_URL}/api/calls/initiate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(params),
@@ -40,15 +49,14 @@ export async function initiateCall(params: CallInitiateParams): Promise<CallInit
 }
 
 export async function endCall(callId: string): Promise<TranscriptLine[]> {
-  const res = await fetch(`/api/calls/end/${callId}`, { method: "POST" });
+  const res = await fetch(`${SERVER_URL}/api/calls/end/${callId}`, { method: "POST" });
   if (!res.ok) throw new Error("Failed to end call");
   const body = await res.json();
   return body.transcript ?? [];
 }
 
 export function connectTranscriptStream(callId: string, callbacks: TranscriptCallbacks): WebSocket {
-  const proto = window.location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${proto}://${window.location.host}/ws/calls?callId=${callId}`);
+  const ws = new WebSocket(`${WS_BASE}/ws/calls?callId=${callId}`);
 
   ws.onopen = () => callbacks.onConnected();
 
