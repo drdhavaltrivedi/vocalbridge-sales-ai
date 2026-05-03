@@ -73,9 +73,7 @@ export default function App() {
         className="bg-[#1a1a1a] text-[#E4E3E0] flex flex-col border-r border-[#1a1a1a]/10"
       >
         <div className="p-6 flex items-center gap-3">
-          <div className="w-8 h-8 bg-[#F27D26] rounded-lg flex items-center justify-center font-bold text-[#1a1a1a]">
-            V
-          </div>
+          <img src="/logo.png" alt="VocalBridge Logo" className="w-10 h-10 object-contain rounded-lg" />
           {isSidebarOpen && (
             <motion.span 
               initial={{ opacity: 0 }}
