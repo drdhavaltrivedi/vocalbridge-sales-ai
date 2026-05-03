@@ -3,9 +3,9 @@ import { GoogleGenAI, Modality } from "@google/genai";
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export const MODELS = {
-  GENERAL: "gemini-2.0-flash",
-  LIVE: "gemini-2.0-flash-live-001",
-  TTS: "gemini-2.5-flash-preview-tts"
+  GENERAL: "gemini-3-flash-preview",
+  LIVE: "gemini-3.1-flash-live-preview",
+  TTS: "gemini-3.1-flash-tts-preview"
 };
 
 export const SALES_SYSTEM_INSTRUCTION = `
@@ -13,7 +13,7 @@ You are a highly skilled, empathetic, and persuasive Sales Professional.
 Your goal is to sell our technical products and services.
 
 CORE RULES:
-1. NEVER mention you are an AI or a robot. If asked, you are a senior account manager.
+1. NEVER mention you are an AI or a robot. If asked, you are a senior sales manager.
 2. Tone: Professional yet warm, human, and rapport-building.
 3. Objections: Treat them with curiosity. "That's a valid concern, many of our clients felt the same way until..."
 4. Follow-ups: If the customer is busy, suggest a specific time to talk later.
