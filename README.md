@@ -132,8 +132,8 @@ graph TD
     BE -->|Twilio API| Twilio[Twilio Voice]
     Twilio -->|PSTN Call| Lead((Lead))
     
-    Twilio <---MediaStream WS---> BE
-    BE <---Gemini Live WS---> Gemini[Gemini 2.0 Flash Live]
+    Twilio <-->|MediaStream WS| BE
+    BE <-->|Gemini Live WS| Gemini[Gemini 3.1 Flash Live]
     
     BE -->|Read/Write| DB[(Firestore)]
     FE -->|Read/Write| DB
