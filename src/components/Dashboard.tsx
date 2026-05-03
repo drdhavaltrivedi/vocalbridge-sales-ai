@@ -1,7 +1,9 @@
-import React from 'react';
-import { TrendingUp, PhoneCall, CheckCircle2, XCircle, Clock, Users, AlertCircle, Plus } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { TrendingUp, PhoneCall, CheckCircle2, XCircle, Clock, Users, AlertCircle, Plus, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
+import { firebaseService } from '../services/firebaseService';
+import { Client, Call } from '../types';
 import { 
   BarChart, 
   Bar, 
@@ -10,43 +12,103 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer, 
-  LineChart, 
-  Line,
   PieChart,
   Pie,
   Cell
 } from 'recharts';
 
-const data = [
-  { name: 'Mon', calls: 24, sales: 4 },
-  { name: 'Tue', calls: 35, sales: 7 },
-  { name: 'Wed', calls: 42, sales: 12 },
-  { name: 'Thu', calls: 30, sales: 8 },
-  { name: 'Fri', calls: 45, sales: 15 },
-  { name: 'Sat', calls: 12, sales: 2 },
-  { name: 'Sun', calls: 8, sales: 1 },
-];
-
-const pieData = [
-  { name: 'Interested', value: 35, color: '#F27D26' },
-  { name: 'Follow up', value: 25, color: '#E4E3E0' },
-  { name: 'Not interested', value: 40, color: '#1a1a1a' },
-];
-
 export default function Dashboard() {
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalCalls: 0,
+    converted: 0,
+    totalLeads: 0,
+    avgCallTime: '0m 0s'
+  });
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [pieData, setPieData] = useState<any[]>([]);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function loadDashboardData() {
+      try {
+        const [clients, calls] = await Promise.all([
+          firebaseService.getClients() || [],
+          // Note: In a real app, you might want a getCalls method in firebaseService
+          // For now, I'll assume we can fetch them or simulate aggregation if not yet implemented
+          [] as Call[] 
+        ]);
+
+        const totalLeads = clients.length;
+        const converted = clients.filter(c => c.status === 'interested').length;
+        
+        setStats({
+          totalLeads,
+          converted,
+          totalCalls: calls.length || 0,
+          avgCallTime: '2m 15s' // Mock for now until we have duration data
+        });
+
+        // Simple chart data based on lead statuses
+        const statusCounts = clients.reduce((acc: any, client) => {
+          acc[client.status] = (acc[client.status] || 0) + 1;
+          return acc;
+        }, {});
+
+        setPieData([
+          { name: 'Interested', value: statusCounts['interested'] || 0, color: '#F27D26' },
+          { name: 'Pending', value: statusCounts['pending'] || 0, color: '#E4E3E0' },
+          { name: 'Follow up', value: statusCounts['follow_up'] || 0, color: '#1a1a1a' },
+        ]);
+
+        // Weekly chart (mocked aggregation for now, or just showing today's vs total)
+        setChartData([
+          { name: 'Today', calls: calls.length, sales: converted },
+          { name: 'Goal', calls: 50, sales: 10 },
+        ]);
+
+        // Recent Activity
+        const recent = clients.slice(0, 4).map(c => ({
+          user: `Client: ${c.name}`,
+          action: c.status === 'interested' ? 'Converted' : 'Lead Added',
+          time: 'Recently',
+          icon: c.status === 'interested' ? CheckCircle2 : Clock,
+          color: c.status === 'interested' ? 'text-green-500' : 'text-[#F27D26]'
+        }));
+        setRecentActivity(recent);
+
+      } catch (error) {
+        console.error("Dashboard load failed:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadDashboardData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="h-[600px] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-[#F27D26] animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8">
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Performance Overview</h2>
         <p className="text-sm text-[#8E9299]">Track your sales metrics and AI performance.</p>
       </div>
+
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {[
-          { label: 'Total Calls', value: '1,284', icon: PhoneCall, trend: '+12%', color: 'blue' },
-          { label: 'Converted', value: '142', icon: CheckCircle2, trend: '+5%', color: 'green' },
-          { label: 'Total Leads', value: '5,420', icon: Users, trend: '+8%', color: 'orange' },
-          { label: 'Avg Call Time', value: '4m 32s', icon: Clock, trend: '-2%', color: 'purple' },
+          { label: 'Total Calls', value: stats.totalCalls, icon: PhoneCall, trend: '+0%', color: 'blue' },
+          { label: 'Converted', value: stats.converted, icon: CheckCircle2, trend: '+0%', color: 'green' },
+          { label: 'Total Leads', value: stats.totalLeads, icon: Users, trend: '+0%', color: 'orange' },
+          { label: 'Avg Call Time', value: stats.avgCallTime, icon: Clock, trend: '0%', color: 'purple' },
         ].map((stat, i) => (
           <motion.div
             key={stat.label}
@@ -59,9 +121,6 @@ export default function Dashboard() {
               <div className="p-2 bg-[#FDFCFB] rounded-lg">
                 <stat.icon className="w-5 h-5 text-[#1a1a1a]" />
               </div>
-              <span className="text-xs font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
-                {stat.trend}
-              </span>
             </div>
             <div>
               <p className="text-xs font-medium text-[#8E9299] uppercase tracking-wider">{stat.label}</p>
@@ -77,7 +136,7 @@ export default function Dashboard() {
           <h3 className="text-lg font-semibold mb-6 tracking-tight">Call Performance</h3>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data}>
+              <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#8E9299' }} />
                 <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#8E9299' }} />
@@ -120,7 +179,7 @@ export default function Dashboard() {
                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
                   <span className="text-[#8E9299]">{item.name}</span>
                 </div>
-                <span>{item.value}%</span>
+                <span>{item.value} Leads</span>
               </div>
             ))}
           </div>
@@ -130,12 +189,7 @@ export default function Dashboard() {
       <div className="p-6 bg-white border border-[#1a1a1a]/5 rounded-2xl shadow-sm overflow-hidden">
         <h3 className="text-lg font-semibold mb-6 tracking-tight">Recent Activity</h3>
         <div className="space-y-4">
-          {[
-            { user: 'Client: John Doe', action: 'Appointment set', time: '2 mins ago', icon: CheckCircle2, color: 'text-green-500' },
-            { user: 'Client: Sarah Smith', action: 'Call completed - Interested', time: '15 mins ago', icon: CheckCircle2, color: 'text-[#F27D26]' },
-            { user: 'Client: Mike Ross', action: 'Call failed - No answer', time: '45 mins ago', icon: XCircle, color: 'text-red-500' },
-            { user: 'Client: Rachel Zane', action: 'Call completed - Follow up scheduled', time: '1 hour ago', icon: AlertCircle, color: 'text-blue-500' },
-          ].map((activity, i) => (
+          {recentActivity.length > 0 ? recentActivity.map((activity, i) => (
             <div key={i} className="flex items-center justify-between py-3 border-b border-[#1a1a1a]/5 last:border-0">
               <div className="flex items-center gap-4">
                 <activity.icon className={cn("w-5 h-5", activity.color)} />
@@ -146,7 +200,9 @@ export default function Dashboard() {
               </div>
               <span className="text-xs text-[#8E9299] font-medium">{activity.time}</span>
             </div>
-          ))}
+          )) : (
+            <p className="text-center py-8 text-[#8E9299] text-sm italic">No recent activity found.</p>
+          )}
         </div>
       </div>
     </div>
