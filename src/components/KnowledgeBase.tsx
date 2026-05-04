@@ -14,6 +14,7 @@ export default function KnowledgeBase() {
   const [isEditing, setIsEditing] = useState(false);
   const [editingDoc, setEditingDoc] = useState<Partial<KnowledgeBaseDoc> | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingMsg, setProcessingMsg] = useState('Gemini is analyzing content...');
   const [urlInput, setUrlInput] = useState('');
   const [isManagingCategories, setIsManagingCategories] = useState(false);
   const [newCatName, setNewCatName] = useState('');
@@ -67,6 +68,7 @@ export default function KnowledgeBase() {
 
   const onDrop = async (acceptedFiles: File[]) => {
     setIsProcessing(true);
+    setProcessingMsg('Gemini is analyzing content...');
     const file = acceptedFiles[0];
     const reader = new FileReader();
 
@@ -104,28 +106,36 @@ export default function KnowledgeBase() {
     if (!urlInput) return;
     setIsProcessing(true);
     try {
-      // Ensure the URL has a protocol
       let validUrl = urlInput.trim();
-      if (!/^https?:\/\//i.test(validUrl)) {
-        validUrl = `https://${validUrl}`;
-      }
+      if (!/^https?:\/\//i.test(validUrl)) validUrl = `https://${validUrl}`;
 
-      // In a real app, we'd have a server-side proxy to scrape. 
-      const simulatedScrape = `Information retrieved from ${validUrl}: [Comprehensive technical specifications and pricing for the product]`;
-      const processedContent = await processKnowledgeSource('url', simulatedScrape);
-      
-      setEditingDoc({
-        title: new URL(validUrl).hostname,
-        content: processedContent,
-        category: 'Weblink'
+      // Phase 1: scrape the URL server-side (bypasses browser CORS)
+      setProcessingMsg('Fetching page content...');
+      const SERVER_URL = ((import.meta.env.VITE_SERVER_URL as string | undefined) ?? "").replace(/\/$/, "");
+      const scrapeRes = await fetch(`${SERVER_URL}/api/scrape`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: validUrl }),
       });
+      if (!scrapeRes.ok) {
+        const body = await scrapeRes.json().catch(() => ({ error: 'Scrape failed' }));
+        throw new Error(body.error ?? 'Failed to fetch URL');
+      }
+      const { title, text } = await scrapeRes.json() as { title: string; text: string };
+
+      // Phase 2: let Gemini structure the raw text into a KB article
+      setProcessingMsg('Gemini is structuring content...');
+      const processedContent = await processKnowledgeSource('url', text);
+
+      setEditingDoc({ title, content: processedContent, category: 'Weblink' });
       setIsEditing(true);
       setUrlInput('');
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to process URL:", error);
-      alert("Please enter a valid URL (e.g., https://example.com)");
+      alert(error.message ?? "Failed to process URL. The site may block scraping or the URL is invalid.");
     } finally {
       setIsProcessing(false);
+      setProcessingMsg('Gemini is analyzing content...');
     }
   }
 
@@ -321,9 +331,9 @@ export default function KnowledgeBase() {
       {/* Main Content Pane */}
       <div className="lg:col-span-2">
         {isProcessing ? (
-          <div className="h-full min-h-[500px] flex flex-col items-center justify-center space-y-4 animate-pulse">
+          <div className="h-full min-h-[500px] flex flex-col items-center justify-center space-y-4">
             <Loader2 className="w-8 h-8 text-[#F27D26] animate-spin" />
-            <p className="font-mono text-xs uppercase tracking-widest text-[#8E9299]">Gemini is analyzing content...</p>
+            <p className="font-mono text-xs uppercase tracking-widest text-[#8E9299]">{processingMsg}</p>
           </div>
         ) : isEditing && editingDoc ? (
           <div className="bg-white border border-[#1a1a1a]/5 rounded-3xl p-8 shadow-sm space-y-6">

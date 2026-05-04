@@ -4,6 +4,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import twilio from "twilio";
 import { GoogleGenAI, Modality, StartSensitivity, EndSensitivity, type Session, type LiveServerMessage } from "@google/genai";
 import { createServer as createViteServer } from "vite";
+import { load as cheerioLoad } from "cheerio";
 import path from "path";
 import { fileURLToPath } from "url";
 import { randomUUID } from "crypto";
@@ -225,6 +226,56 @@ async function startServer() {
     });
   });
 
+  // ── Scrape URL for Knowledge Base ────────────────────────────────
+  app.post("/api/scrape", async (req, res) => {
+    const { url } = req.body as { url?: string };
+    if (!url) return res.status(400).json({ error: "url is required" });
+
+    try {
+      const response = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; VocalBridge-KB/1.0; +https://vocalbridge.ai)",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+
+      const contentType = response.headers.get("content-type") ?? "";
+      if (!contentType.includes("text/html") && !contentType.includes("text/plain")) {
+        throw new Error("URL does not point to an HTML or text page");
+      }
+
+      const html = await response.text();
+      const $    = cheerioLoad(html);
+
+      // Strip chrome — scripts, styles, navigation, ads
+      $("script, style, nav, header, footer, aside, iframe, noscript, svg").remove();
+      $("[role='navigation'], [role='banner'], [role='complementary']").remove();
+      $(".nav, .navbar, .footer, .sidebar, .menu, .cookie, .ad, .advertisement").remove();
+
+      const pageTitle = $("title").first().text().trim() || new URL(url).hostname;
+
+      // Prefer semantic main content containers when available
+      const mainEl   = $("main, article, [role='main'], .content, .post, .entry-content").first();
+      const rawText  = (mainEl.length ? mainEl : $("body"))
+        .text()
+        .replace(/[ \t]+/g, " ")      // collapse horizontal whitespace
+        .replace(/\n{3,}/g, "\n\n")   // collapse excessive newlines
+        .trim()
+        .slice(0, 20000);              // cap for Gemini context window
+
+      if (!rawText) throw new Error("No readable text content found on the page");
+
+      console.log(`[Scrape] ${url} → ${rawText.length} chars, title="${pageTitle}"`);
+      res.json({ title: pageTitle, text: rawText });
+    } catch (err: any) {
+      console.error("[Scrape] Failed:", url, err.message);
+      res.status(500).json({ error: err.message ?? "Failed to scrape URL" });
+    }
+  });
+
   // ── Initiate outbound call ────────────────────────────────────────
   app.post("/api/calls/initiate", async (req, res) => {
     const {
@@ -283,6 +334,7 @@ async function startServer() {
         statusCallback:       `${PUBLIC_URL}/api/voice/status`,
         statusCallbackMethod: "POST",
         statusCallbackEvent:  ["initiated", "ringing", "answered", "completed", "failed", "busy", "no-answer"],
+        machineDetection:     "Enable",
       });
 
       const session: CallSession = {
@@ -308,19 +360,31 @@ async function startServer() {
   });
 
   // ── TwiML: connect MediaStream when lead answers ──────────────────
-  // Twilio fetches this URL when the lead picks up. Returns a <Connect><Stream>
-  // which opens a bidirectional audio WebSocket to /ws/stream.
+  // Twilio fetches this URL when the lead picks up. AnsweredBy is included
+  // in the request body when machineDetection: "Enable" is set.
   app.all("/api/voice/twiml", (req, res) => {
-    const { callId } = { ...req.query, ...req.body } as Record<string, string>;
-    const twiml   = new twilio.twiml.VoiceResponse();
-    const session = activeCalls.get(callId);
+    const params     = { ...req.query, ...req.body } as Record<string, string>;
+    const callId     = params.callId;
+    const answeredBy = params.AnsweredBy ?? "";
+    const twiml      = new twilio.twiml.VoiceResponse();
+    const session    = activeCalls.get(callId);
 
     if (!session) {
       twiml.say("I apologize, this call could not be connected. Goodbye.");
       twiml.hangup();
+    } else if (answeredBy && answeredBy !== "human") {
+      // Voicemail / answering machine detected — hang up immediately
+      console.log(`[AMD] Machine detected (${answeredBy}) callId=${callId} client=${session.clientName}`);
+      session.status = "completed";
+      emitToFrontend(callId, {
+        type:         "call_ended",
+        twilioStatus: "machine_detected",
+        transcript:   [],
+      });
+      twiml.hangup();
     } else {
       session.status = "active";
-      const connect = twiml.connect();
+      const connect  = twiml.connect();
       // track: inbound_track → Twilio sends us only the customer's audio,
       // preventing Gemini's own voice from echoing back as input.
       connect.stream({

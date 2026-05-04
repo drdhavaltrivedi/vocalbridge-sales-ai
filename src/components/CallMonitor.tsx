@@ -139,7 +139,7 @@ export default function CallMonitor() {
         },
         onCallEnded: async (data) => {
           stopDurationTimer();
-          await finishCall(callId, selectedClientRef.current!, data.transcript);
+          await finishCall(callId, selectedClientRef.current!, data.transcript, data.twilioStatus);
         },
         onError: (err) => {
           setError(`Connection error: ${err.message}. Transcript will update when available.`);
@@ -172,9 +172,30 @@ export default function CallMonitor() {
     }
   }
 
-  async function finishCall(callId: string, client: Client, lines: TranscriptLine[]) {
+  async function finishCall(callId: string, client: Client, lines: TranscriptLine[], twilioStatus?: string) {
     setMode('analyzing');
     setTranscript(lines);
+
+    // Voicemail / answering machine — skip AI summary, log as No Answer
+    if (twilioStatus === 'machine_detected' || lines.length === 0) {
+      try {
+        await firebaseService.addCall({
+          clientId: client.id,
+          clientName: client.name,
+          status: 'completed',
+          startTime: new Date().toISOString(),
+          outcome: 'No Answer',
+          transcript: [],
+        });
+        await firebaseService.updateClient(client.id, { status: 'no_answer', lastCallId: callId });
+      } catch (err) {
+        console.error('Voicemail save failed:', err);
+      }
+      setSummary({ outcome: 'No Answer', sentiment: 'Neutral', roiProjection: 'Voicemail detected — call not connected to a human.', upsellOpportunities: [] });
+      setMode('summary');
+      setActiveCallId(null);
+      return;
+    }
 
     const transcriptText = lines.map(l => `${l.role}: ${l.text}`).join('\n');
     try {
@@ -194,7 +215,6 @@ export default function CallMonitor() {
         transcript: lines,
       });
 
-      // Update client status based on outcome
       const statusMap: Record<string, Client['status']> = {
         'Sale Made': 'interested',
         'Follow-up Scheduled': 'follow_up',

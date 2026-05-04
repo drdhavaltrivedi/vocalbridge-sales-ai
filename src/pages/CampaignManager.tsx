@@ -225,34 +225,51 @@ export default function CampaignManager() {
     campaign: Campaign,
     lines: TranscriptLine[],
   ) {
-    const transcriptText = lines.map(l => `${l.role}: ${l.text}`).join('\n');
     let outcome = 'No Answer';
 
-    try {
-      const summary = await generateSummary(client.name, transcriptText);
-      outcome = summary.outcome ?? 'No Answer';
-      await firebaseService.addCall({
-        clientId: client.id,
-        clientName: client.name,
-        status: 'completed',
-        startTime: new Date().toISOString(),
-        summary: summary.nextSteps,
-        sentiment: summary.sentiment,
-        outcome: summary.outcome,
-        roiProjection: summary.roiProjection,
-        upsellOpportunities: summary.upsellOpportunities,
-        transcript: lines,
-      });
-      const statusMap: Record<string, Client['status']> = {
-        'Sale Made': 'interested',
-        'Follow-up Scheduled': 'follow_up',
-        'Not Interested': 'not_interested',
-        'No Answer': 'no_answer',
-      };
-      const newStatus = statusMap[summary.outcome];
-      if (newStatus) await firebaseService.updateClient(client.id, { status: newStatus, lastCallId: callId });
-    } catch {
-      // summary failed — still advance the queue
+    if (lines.length === 0) {
+      // Voicemail / machine detected — log the attempt and move on, no AI summary needed
+      try {
+        await firebaseService.addCall({
+          clientId: client.id,
+          clientName: client.name,
+          status: 'completed',
+          startTime: new Date().toISOString(),
+          outcome: 'No Answer',
+          transcript: [],
+        });
+        await firebaseService.updateClient(client.id, { status: 'no_answer', lastCallId: callId });
+      } catch {
+        // non-fatal
+      }
+    } else {
+      const transcriptText = lines.map(l => `${l.role}: ${l.text}`).join('\n');
+      try {
+        const summary = await generateSummary(client.name, transcriptText);
+        outcome = summary.outcome ?? 'No Answer';
+        await firebaseService.addCall({
+          clientId: client.id,
+          clientName: client.name,
+          status: 'completed',
+          startTime: new Date().toISOString(),
+          summary: summary.nextSteps,
+          sentiment: summary.sentiment,
+          outcome: summary.outcome,
+          roiProjection: summary.roiProjection,
+          upsellOpportunities: summary.upsellOpportunities,
+          transcript: lines,
+        });
+        const statusMap: Record<string, Client['status']> = {
+          'Sale Made': 'interested',
+          'Follow-up Scheduled': 'follow_up',
+          'Not Interested': 'not_interested',
+          'No Answer': 'no_answer',
+        };
+        const newStatus = statusMap[summary.outcome];
+        if (newStatus) await firebaseService.updateClient(client.id, { status: newStatus, lastCallId: callId });
+      } catch {
+        // summary failed — still advance the queue
+      }
     }
 
     const converted = ['Sale Made', 'Follow-up Scheduled'].includes(outcome);
